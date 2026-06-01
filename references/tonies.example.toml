@@ -1,0 +1,27 @@
+# Copy this file to ~/.config/tonie-podcast-sync-skill/tonies.toml
+# or set TONIE_SYNC_SKILL_CONFIG to a different local path.
+#
+# This file is intentionally anonymous.
+# Replace every example ID, name and alias with the real household-specific values.
+
+[tonies.benjamin-kreativ]
+id = "12345678-1234-1234-1234-123456789abc"
+name = "Benjamins Kreativ-Tonie"
+aliases = ["benjamin", "blauer tonie", "einschlaf tonie"]
+default_podcast = "maus-gute-nacht"
+episode_sorting = "random"
+maximum_length = 60
+episode_min_duration_sec = 0
+volume_adjustment = 0
+wipe = true
+
+[tonies.geschichten-orange]
+id = "87654321-4321-4321-4321-cba987654321"
+name = "Oranger Geschichten-Tonie"
+aliases = ["orange", "geschichten tonie", "oranger tonie"]
+default_podcast = "pumuckl"
+episode_sorting = "random"
+maximum_length = 90
+episode_min_duration_sec = 0
+volume_adjustment = 0
+wipe = true
