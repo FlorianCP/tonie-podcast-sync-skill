@@ -1,3 +1,6 @@
 interface:
   display_name: "Tonie Podcast Sync"
-  short_description: "Sync podcasts to creative tonies"
+  short_description: "Set up tonie-podcast-sync locally, discover Kreativ-Tonie IDs, assign RSS feeds, and sync configured Tonies."
+  primary_instructions_file: "SKILL.md"
+  human_readme_file: "README.md"
+  entrypoint: "scripts/tonie_sync.py"

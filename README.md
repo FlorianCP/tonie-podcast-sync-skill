@@ -1,5 +1,9 @@
 # tonie-podcast-sync-skill
 
+![MIT License](https://img.shields.io/badge/license-MIT-green.svg)
+![Python 3](https://img.shields.io/badge/python-3-blue.svg)
+![Agent Skill](https://img.shields.io/badge/agent-ready-8A2BE2.svg)
+
 Ein wiederverwendbarer Skill für KI-Agenten, damit sie Kreativ-Tonies mit Podcasts bespielen können.
 
 Der Skill baut auf dem separaten Upstream-Projekt [`tonie-podcast-sync`](https://github.com/alexhartm/tonie-podcast-sync) auf und ergänzt darauf eine agent-freundliche Hülle für:
@@ -26,6 +30,19 @@ Explizit dokumentiert ist die Nutzung mit:
 
 - **Hermes Agent**
 - **OpenClaw**
+
+## Schnellstart
+
+Wenn du das Repository einfach einem Agenten geben willst, reicht in der Praxis oft dieser Auftrag:
+
+```text
+Hier ist ein Skill-Repository. Bitte verwende diesen Skill.
+Lies zuerst SKILL.md, prüfe das Setup mit doctor,
+richte tonie-podcast-sync lokal ein und hilf mir danach,
+meine Kreativ-Tonies sauber zu konfigurieren.
+```
+
+Falls dein Agent kein automatisches Skill-Loading hat, sag zusätzlich explizit dazu, dass er die Datei `SKILL.md` als Hauptanleitung verwenden soll.
 
 ## Wichtige Eigenschaften
 
@@ -133,6 +150,15 @@ Wenn `TONIE_SYNC_SKILL_ENV_FILE` **nicht** gesetzt ist, sucht der Skill der Reih
 - `~/.env`
 - `~/.hermes/.env`
 - `~/.openclaw/.env`
+
+Beispiel für eine lokale Env-Datei:
+
+```dotenv
+TONIE_USERNAME=dein-login@example.org
+TONIE_PASSWORD=dein-passwort
+```
+
+Die Datei gehört **nur lokal** auf deinen Rechner und **nie** ins Repository.
 
 ## Tonies im Haushalt eintragen
 
@@ -269,6 +295,14 @@ Für OpenClaw gilt derselbe Ansatz:
 - sagen, dass der Skill verwendet werden soll
 - den Agenten `SKILL.md` lesen lassen
 - danach Setup, Discovery und lokale Konfiguration gemeinsam durchführen
+
+## Agent-Metadaten
+
+Unter `agents/openai.yaml` liegt ein kleines, bewusst schlichtes Metadatenbeispiel für Agent-Setups, die solche Zusatzdateien auswerten.
+
+- `SKILL.md` bleibt die eigentliche operative Quelle.
+- `README.md` ist die menschenlesbare Einführung.
+- `agents/openai.yaml` ist optional und nur ein Hilfssignal für Tooling, das Skill-Repositories indexieren oder anzeigen möchte.
 
 ## Hinweise für Veröffentlichung und Betrieb
 
