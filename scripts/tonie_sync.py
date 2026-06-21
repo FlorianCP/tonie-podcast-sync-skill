@@ -19,6 +19,11 @@ DEFAULT_PROJECT_DIR = Path.home() / ".local" / "share" / "tonie-podcast-sync"
 DEFAULT_CONFIG_FILE = Path.home() / ".config" / "tonie-podcast-sync-skill" / "tonies.toml"
 EXAMPLE_CONFIG_FILE = SKILL_DIR / "references" / "tonies.example.toml"
 GOOGLE_DOC_URL = "https://docs.google.com/spreadsheets/d/16EGIIIXWbNr8DwaGZWbUqnYHg_LgpgM7NECzTbUWgW4/edit?gid=0#gid=0"
+EXPECTED_UPSTREAM_REPO_URL = "git@github.com:FlorianCP/tonie-podcast-sync.git"
+EXPECTED_UPSTREAM_REF = "feature/local-mp3-sync"
+PODCAST_SORTINGS = ["by_date_newest_first", "by_date_oldest_first", "random"]
+LOCAL_SORTINGS = ["alphabetical", "manual"]
+ALL_SORTINGS = PODCAST_SORTINGS + LOCAL_SORTINGS
 
 
 PODCASTS: dict[str, dict[str, Any]] = {
@@ -364,6 +369,16 @@ def load_toml(path: Path) -> dict[str, Any]:
         return load_settings_fallback(text)
 
 
+def normalize_audio_file_values(raw_value: Any, slug: str) -> list[str] | None:
+    if raw_value is None:
+        return None
+    if isinstance(raw_value, list):
+        return [str(item) for item in raw_value]
+    if isinstance(raw_value, str):
+        return [raw_value]
+    raise SystemExit(f"audio_files für {slug} muss String oder Liste sein")
+
+
 def load_skill_config() -> dict[str, dict[str, Any]]:
     path = config_file()
     if not path.exists():
@@ -372,20 +387,44 @@ def load_skill_config() -> dict[str, dict[str, Any]]:
     tonies = raw.get("tonies")
     if not isinstance(tonies, dict) or not tonies:
         raise SystemExit(f"Keine [tonies.*]-Einträge in {path} gefunden.")
+
     normalized: dict[str, dict[str, Any]] = {}
     for slug, cfg in tonies.items():
         if not isinstance(cfg, dict):
             raise SystemExit(f"Ungültige Tonie-Konfiguration für {slug}")
+
         tonie_id = str(cfg.get("id", "")).strip()
         name = str(cfg.get("name", slug)).strip()
         if not tonie_id:
             raise SystemExit(f"Tonie {slug} hat keine id in {path}")
+
         aliases = [str(item) for item in cfg.get("aliases", [])]
-        normalized[str(slug)] = {
+        podcast_value = cfg.get("podcast")
+        legacy_default_podcast = cfg.get("default_podcast")
+        if not podcast_value and legacy_default_podcast:
+            legacy_key = str(legacy_default_podcast).strip()
+            if legacy_key not in PODCASTS:
+                raise SystemExit(f"Unbekannter default_podcast {legacy_key!r} für Tonie {slug}")
+            podcast_value = PODCASTS[legacy_key]["feed"]
+
+        audio_folder = cfg.get("audio_folder")
+        audio_files = normalize_audio_file_values(cfg.get("audio_files"), str(slug))
+
+        source_values = {
+            "podcast": str(podcast_value).strip() if podcast_value else "",
+            "audio_folder": str(audio_folder).strip() if audio_folder else "",
+            "audio_files": audio_files or [],
+        }
+        active_sources = [key for key, value in source_values.items() if value]
+        if len(active_sources) != 1:
+            raise SystemExit(
+                f"Tonie {slug} muss genau eine Quelle konfigurieren: podcast, audio_folder oder audio_files"
+            )
+
+        normalized_cfg: dict[str, Any] = {
             "id": tonie_id,
             "name": name,
             "aliases": aliases,
-            "default_podcast": cfg.get("default_podcast"),
             "episode_sorting": cfg.get("episode_sorting", "random"),
             "maximum_length": cfg.get("maximum_length", 90),
             "episode_min_duration_sec": cfg.get("episode_min_duration_sec", 0),
@@ -395,6 +434,13 @@ def load_skill_config() -> dict[str, dict[str, Any]]:
             "pinned_episode_names": cfg.get("pinned_episode_names", []),
             "wipe": cfg.get("wipe", True),
         }
+        if source_values["podcast"]:
+            normalized_cfg["podcast"] = source_values["podcast"]
+        if source_values["audio_folder"]:
+            normalized_cfg["audio_folder"] = str(Path(source_values["audio_folder"]).expanduser())
+        if source_values["audio_files"]:
+            normalized_cfg["audio_files"] = [str(Path(item).expanduser()) for item in source_values["audio_files"]]
+        normalized[str(slug)] = normalized_cfg
     return normalized
 
 
@@ -417,6 +463,8 @@ def write_settings(data: dict[str, Any]) -> None:
         blocks.append(f"[creative_tonies.{tonie_id}]")
         ordered_keys = [
             "podcast",
+            "audio_folder",
+            "audio_files",
             "name",
             "episode_sorting",
             "maximum_length",
@@ -476,32 +524,62 @@ def resolve_tonie(value: str, tonies: dict[str, dict[str, Any]]) -> str:
     raise SystemExit(f"Unbekannter Tonie: {value}")
 
 
-def apply_defaults(*, overwrite: bool) -> dict[str, Any]:
-    skill_tonies = load_skill_config()
-    data = load_settings()
-    creative_tonies = data.setdefault("creative_tonies", {})
-    for slug, tonie in skill_tonies.items():
-        podcast_slug = tonie.get("default_podcast")
-        if not podcast_slug:
-            continue
-        if podcast_slug not in PODCASTS:
-            raise SystemExit(f"Unbekannter default_podcast {podcast_slug!r} für Tonie {slug}")
-        existing = dict(creative_tonies.get(tonie["id"], {}))
-        defaults = {
-            "podcast": PODCASTS[podcast_slug]["feed"],
-            "name": tonie["name"],
-            "episode_sorting": tonie["episode_sorting"],
-            "maximum_length": tonie["maximum_length"],
-            "episode_min_duration_sec": tonie["episode_min_duration_sec"],
-            "volume_adjustment": tonie["volume_adjustment"],
-            "wipe": tonie["wipe"],
-        }
-        if tonie.get("episode_max_duration_sec") is not None:
-            defaults["episode_max_duration_sec"] = tonie["episode_max_duration_sec"]
+def tonie_source_kind(tonie: dict[str, Any]) -> str:
+    if tonie.get("podcast"):
+        return "podcast"
+    if tonie.get("audio_folder"):
+        return "audio_folder"
+    if tonie.get("audio_files"):
+        return "audio_files"
+    raise SystemExit(f"Keine Quelle für Tonie konfiguriert: {tonie.get('name', tonie.get('id', '?'))}")
+
+
+def tonie_source_summary(tonie: dict[str, Any]) -> str:
+    source_kind = tonie_source_kind(tonie)
+    if source_kind == "podcast":
+        return f"podcast={tonie['podcast']}"
+    if source_kind == "audio_folder":
+        return f"audio_folder={tonie['audio_folder']}"
+    return f"audio_files={len(tonie.get('audio_files', []))} Datei(en)"
+
+
+def build_settings_defaults(tonie: dict[str, Any]) -> dict[str, Any]:
+    defaults: dict[str, Any] = {
+        "name": tonie["name"],
+        "episode_sorting": tonie["episode_sorting"],
+        "maximum_length": tonie["maximum_length"],
+        "episode_min_duration_sec": tonie["episode_min_duration_sec"],
+        "volume_adjustment": tonie["volume_adjustment"],
+        "wipe": tonie["wipe"],
+    }
+    source_kind = tonie_source_kind(tonie)
+    defaults[source_kind] = tonie[source_kind]
+    if tonie.get("episode_max_duration_sec") is not None:
+        defaults["episode_max_duration_sec"] = tonie["episode_max_duration_sec"]
+    if source_kind == "podcast":
         if tonie.get("excluded_title_strings"):
             defaults["excluded_title_strings"] = tonie["excluded_title_strings"]
         if tonie.get("pinned_episode_names"):
             defaults["pinned_episode_names"] = tonie["pinned_episode_names"]
+    return defaults
+
+
+def apply_defaults(*, overwrite: bool) -> dict[str, Any]:
+    skill_tonies = load_skill_config()
+    data = load_settings()
+    creative_tonies = data.setdefault("creative_tonies", {})
+    for tonie in skill_tonies.values():
+        existing = dict(creative_tonies.get(tonie["id"], {}))
+        defaults = build_settings_defaults(tonie)
+        if overwrite:
+            for key in [
+                "podcast",
+                "audio_folder",
+                "audio_files",
+                "excluded_title_strings",
+                "pinned_episode_names",
+            ]:
+                existing.pop(key, None)
         for key, value in defaults.items():
             if overwrite or key not in existing:
                 existing[key] = value
@@ -518,10 +596,12 @@ def restore_defaults() -> dict[str, Any]:
     return apply_defaults(overwrite=True)
 
 
-def assign_podcast(
+def assign_source(
     tonie_slug: str,
-    podcast_feed: str,
     *,
+    podcast_feed: str | None,
+    audio_folder: str | None,
+    audio_files: list[str] | None,
     episode_sorting: str | None,
     maximum_length: int | None,
     episode_min_duration_sec: int | None,
@@ -529,11 +609,37 @@ def assign_podcast(
     volume_adjustment: int | None,
     wipe: bool | None,
 ) -> dict[str, Any]:
+    selected_sources = [
+        value
+        for value in (
+            podcast_feed,
+            audio_folder,
+            audio_files if audio_files else None,
+        )
+        if value
+    ]
+    if len(selected_sources) != 1:
+        raise SystemExit("Genau eine Quelle angeben: --podcast, --audio-folder oder --audio-file")
+
     skill_tonies = load_skill_config()
     data = ensure_defaults()
     tonie = skill_tonies[tonie_slug]
     cfg = dict(data["creative_tonies"].get(tonie["id"], {}))
-    cfg["podcast"] = podcast_feed
+
+    for key in ["podcast", "audio_folder", "audio_files"]:
+        cfg.pop(key, None)
+
+    if podcast_feed is not None:
+        cfg["podcast"] = podcast_feed
+    elif audio_folder is not None:
+        cfg["audio_folder"] = str(Path(audio_folder).expanduser())
+        cfg.pop("excluded_title_strings", None)
+        cfg.pop("pinned_episode_names", None)
+    elif audio_files:
+        cfg["audio_files"] = [str(Path(item).expanduser()) for item in audio_files]
+        cfg.pop("excluded_title_strings", None)
+        cfg.pop("pinned_episode_names", None)
+
     cfg["name"] = tonie["name"]
     if episode_sorting is not None:
         cfg["episode_sorting"] = episode_sorting
@@ -578,21 +684,18 @@ def sync_one(tonie_slug: str) -> None:
     tonie_id = skill_tonies[tonie_slug]["id"]
     code = r'''
 import sys
-from tonie_podcast_sync.cli import _create_podcast_from_config, _create_tonie_podcast_sync
+from tonie_podcast_sync.cli import _create_tonie_podcast_sync, _sync_tonie_from_config
 from tonie_podcast_sync.config import settings
 
-tonies = settings.CREATIVE_TONIES
 try:
-    cfg = tonies[sys.argv[1]]
+    cfg = settings.CREATIVE_TONIES[sys.argv[1]]
 except Exception:
     raise SystemExit(f"Tonie-ID nicht in settings.toml gefunden: {sys.argv[1]}")
 
 tps = _create_tonie_podcast_sync()
 if not tps:
     raise SystemExit("Konnte ToniePodcastSync nicht initialisieren")
-podcast = _create_podcast_from_config(cfg)
-wipe = cfg.get("wipe", True)
-tps.sync_podcast_to_tonie(podcast, sys.argv[1], cfg.maximum_length, wipe=wipe)
+_sync_tonie_from_config(tps, sys.argv[1], cfg)
 '''
     run([str(venv_python()), "-c", code, tonie_id])
 
@@ -610,8 +713,7 @@ def sync_all() -> None:
 def list_configured_tonies() -> None:
     tonies = load_skill_config()
     for slug, tonie in tonies.items():
-        default_podcast = tonie.get("default_podcast") or "-"
-        print(f"{slug}: {tonie['name']} ({tonie['id']}) default={default_podcast}")
+        print(f"{slug}: {tonie['name']} ({tonie['id']}) {tonie_source_summary(tonie)}")
 
 
 def list_podcasts() -> None:
@@ -630,6 +732,8 @@ def show_config() -> None:
         print(f"[{slug}] {tonie['name']}")
         for key in [
             "podcast",
+            "audio_folder",
+            "audio_files",
             "episode_sorting",
             "maximum_length",
             "episode_min_duration_sec",
@@ -654,6 +758,56 @@ def doctor() -> None:
     creds = find_credentials()
     print(f"Env credentials: {'OK' if creds else 'FEHLT'} {env_search_summary()}")
     print(f"Credential keys: {credential_variable_summary()}")
+    print(f"Erwartetes Repo: {EXPECTED_UPSTREAM_REPO_URL}")
+    print(f"Erwarteter Ref: {EXPECTED_UPSTREAM_REF}")
+
+    if project_dir().exists() and (project_dir() / ".git").exists():
+        remote = subprocess.run(
+            ["git", "-C", str(project_dir()), "remote", "get-url", "origin"],
+            check=False,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        branch = subprocess.run(
+            ["git", "-C", str(project_dir()), "branch", "--show-current"],
+            check=False,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        commit = subprocess.run(
+            ["git", "-C", str(project_dir()), "rev-parse", "--short", "HEAD"],
+            check=False,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        status = subprocess.run(
+            ["git", "-C", str(project_dir()), "status", "--short"],
+            check=False,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        print(f"Git remote: {remote or '-'}")
+        print(f"Git branch: {branch or '-'}")
+        print(f"Git commit: {commit or '-'}")
+        print(f"Git dirty: {'JA' if status else 'NEIN'}")
+
+    if venv_cli().exists():
+        sync_local_help = subprocess.run(
+            [str(venv_cli()), "sync-local-files", "--help"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        print(f"CLI local-audio support: {'OK' if sync_local_help.returncode == 0 else 'FEHLT'}")
+
+    if config_file().exists():
+        try:
+            tonies = load_skill_config()
+            print(f"Lokale Tonies: {len(tonies)}")
+            for slug, tonie in tonies.items():
+                print(f"  - {slug}: {tonie_source_summary(tonie)}")
+        except SystemExit as exc:
+            print(f"Tonie-Config-Validierung: FEHLT {exc}")
 
 
 def setup_local(python_bin: str = "python3") -> None:
@@ -663,10 +817,16 @@ def setup_local(python_bin: str = "python3") -> None:
     target = project_dir()
     target.parent.mkdir(parents=True, exist_ok=True)
     if not target.exists():
-        run(["git", "clone", "https://github.com/alexhartm/tonie-podcast-sync", str(target)])
+        run(["git", "clone", EXPECTED_UPSTREAM_REPO_URL, str(target)])
+    if not (target / ".git").exists():
+        raise SystemExit(f"Projektordner existiert, ist aber kein Git-Repo: {target}")
+
+    run(["git", "-C", str(target), "remote", "set-url", "origin", EXPECTED_UPSTREAM_REPO_URL])
+    run(["git", "-C", str(target), "fetch", "origin", "--prune"])
+    run(["git", "-C", str(target), "checkout", "-B", EXPECTED_UPSTREAM_REF, f"origin/{EXPECTED_UPSTREAM_REF}"])
     run([python_path, "-m", "venv", str(target / ".venv")])
     run([str(target / ".venv" / "bin" / "python"), "-m", "pip", "install", "--upgrade", "pip"])
-    run([str(target / ".venv" / "bin" / "python"), "-m", "pip", "install", "tonie-podcast-sync"])
+    run([str(target / ".venv" / "bin" / "python"), "-m", "pip", "install", "-e", str(target)])
 
 
 def init_config(force: bool = False) -> None:
@@ -714,8 +874,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     assign = sub.add_parser("assign")
     assign.add_argument("--tonie", required=True)
-    assign.add_argument("--podcast", required=True)
-    assign.add_argument("--episode-sorting", choices=["by_date_newest_first", "by_date_oldest_first", "random"])
+    assign.add_argument("--podcast")
+    assign.add_argument("--audio-folder")
+    assign.add_argument("--audio-file", action="append")
+    assign.add_argument("--episode-sorting", choices=ALL_SORTINGS)
     assign.add_argument("--maximum-length", type=int)
     assign.add_argument("--episode-min-duration-sec", type=int)
     assign.add_argument("--episode-max-duration-sec", type=int)
@@ -727,8 +889,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     assign_sync = sub.add_parser("assign-and-sync")
     assign_sync.add_argument("--tonie", required=True)
-    assign_sync.add_argument("--podcast", required=True)
-    assign_sync.add_argument("--episode-sorting", choices=["by_date_newest_first", "by_date_oldest_first", "random"])
+    assign_sync.add_argument("--podcast")
+    assign_sync.add_argument("--audio-folder")
+    assign_sync.add_argument("--audio-file", action="append")
+    assign_sync.add_argument("--episode-sorting", choices=ALL_SORTINGS)
     assign_sync.add_argument("--maximum-length", type=int)
     assign_sync.add_argument("--episode-min-duration-sec", type=int)
     assign_sync.add_argument("--episode-max-duration-sec", type=int)
@@ -776,10 +940,19 @@ def main() -> None:
     if args.command in {"assign", "assign-and-sync"}:
         tonies = load_skill_config()
         tonie_slug = resolve_tonie(args.tonie, tonies)
-        podcast = resolve_podcast(args.podcast)
-        assign_podcast(
+
+        podcast_feed: str | None = None
+        label: str | None = None
+        if args.podcast:
+            podcast = resolve_podcast(args.podcast)
+            podcast_feed = podcast["feed"]
+            label = podcast["name"] if not podcast["slug"] else f"{podcast['name']} ({podcast['slug']})"
+
+        cfg = assign_source(
             tonie_slug,
-            podcast["feed"],
+            podcast_feed=podcast_feed,
+            audio_folder=args.audio_folder,
+            audio_files=args.audio_file,
             episode_sorting=args.episode_sorting,
             maximum_length=args.maximum_length,
             episode_min_duration_sec=args.episode_min_duration_sec,
@@ -787,9 +960,11 @@ def main() -> None:
             volume_adjustment=args.volume_adjustment,
             wipe=args.wipe,
         )
-        label = podcast["name"]
-        if podcast["slug"]:
-            label = f"{label} ({podcast['slug']})"
+        if label is None:
+            if cfg.get("audio_folder"):
+                label = f"Ordner {cfg['audio_folder']}"
+            else:
+                label = f"{len(cfg.get('audio_files', []))} Datei(en)"
         print(f"{tonies[tonie_slug]['name']} -> {label}")
         print(f"Settings aktualisiert: {settings_file()}")
         if args.command == "assign-and-sync":

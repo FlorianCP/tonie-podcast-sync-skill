@@ -3,25 +3,49 @@
 #
 # This file is intentionally anonymous.
 # Replace every example ID, name and alias with the real household-specific values.
+#
+# Exactly one source must be configured per Tonie:
+# - podcast
+# - audio_folder
+# - audio_files
 
 [tonies.benjamin-kreativ]
 id = "12345678-1234-1234-1234-123456789abc"
 name = "Benjamins Kreativ-Tonie"
 aliases = ["benjamin", "blauer tonie", "einschlaf tonie"]
-default_podcast = "maus-gute-nacht"
+podcast = "https://kinder.wdr.de/radio/diemaus/audio/gute-nacht-mit-der-maus/diemaus-gute-nacht-104.podcast"
 episode_sorting = "random"
 maximum_length = 60
 episode_min_duration_sec = 0
+episode_max_duration_sec = 1800
 volume_adjustment = 0
+excluded_title_strings = ["vampir", "grusel"]
+pinned_episode_names = ["die maus"]
 wipe = true
 
 [tonies.geschichten-orange]
 id = "87654321-4321-4321-4321-cba987654321"
 name = "Oranger Geschichten-Tonie"
 aliases = ["orange", "geschichten tonie", "oranger tonie"]
-default_podcast = "pumuckl"
-episode_sorting = "random"
-maximum_length = 90
+audio_folder = "/Users/example/Audio/Bedtime"
+episode_sorting = "alphabetical"
+maximum_length = 45
+episode_min_duration_sec = 0
+episode_max_duration_sec = 1800
+volume_adjustment = -2
+wipe = false
+
+[tonies.favoriten-silber]
+id = "abcdef01-abcd-abcd-abcd-0123456789ef"
+name = "Silberner Favoriten-Tonie"
+aliases = ["silber", "favoriten tonie", "playlist tonie"]
+audio_files = [
+  "/Users/example/Audio/intro.mp3",
+  "/Users/example/Audio/story.mp3",
+  "/Users/example/Audio/outro.mp3",
+]
+episode_sorting = "manual"
+maximum_length = 35
 episode_min_duration_sec = 0
 volume_adjustment = 0
 wipe = true

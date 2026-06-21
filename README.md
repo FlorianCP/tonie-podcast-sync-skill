@@ -1,268 +1,86 @@
 # tonie-podcast-sync-skill
 
-![MIT License](https://img.shields.io/badge/license-MIT-green.svg)
-![Python 3](https://img.shields.io/badge/python-3-blue.svg)
-![Agent Skill](https://img.shields.io/badge/agent-ready-8A2BE2.svg)
+Ein Skill-Repository für Hermes/OpenClaw-artige Agenten, das das Python-Projekt `tonie-podcast-sync` lokal einrichtet und eine haushaltsspezifische Tonie-Zuordnung verwaltet.
 
-Ein wiederverwendbarer Skill für KI-Agenten, damit sie Kreativ-Tonies mit Podcasts bespielen können.
+Der Skill unterstützt jetzt drei Quelltypen pro Kreativ-Tonie:
 
-Der Skill baut auf dem separaten Upstream-Projekt [`tonie-podcast-sync`](https://github.com/alexhartm/tonie-podcast-sync) auf und ergänzt darauf eine agent-freundliche Hülle für:
+- Podcasts / RSS-Feeds
+- lokale Audio-Ordner
+- explizite lokale Dateilisten
 
-- Voraussetzungen prüfen
-- Upstream lokal installieren
-- Tonie-Zugangsdaten aus Umgebungsvariablen übernehmen
-- Kreativ-Tonie-IDs ermitteln
-- eine lokale `tonies.toml` mit Namen, Aliassen und IDs pflegen
-- Podcasts aus einem eingebauten Katalog oder über freie RSS-URLs zuweisen
-- einzelne oder alle konfigurierten Tonies synchronisieren
+Der bestehende Podcast-Katalog bleibt erhalten und kann weiterhin über Aliase wie `pumuckl` oder `maus-gute-nacht` verwendet werden.
 
-## Ziel
+## Aktueller Setup-Modus
 
-Dieses Repository ist dafür gedacht, dass ein Mensch es seinem KI-Agenten zeigt und sagt, dass er diesen Skill verwenden soll.
+Bis die lokalen Audio-Erweiterungen upstream gemerged und released sind, arbeitet dieser Skill absichtlich gegen Florians Fork und einen fest verdrahteten Branch:
 
-Kurz gesagt:
+- Repo: `git@github.com:FlorianCP/tonie-podcast-sync.git`
+- Branch: `feature/local-mp3-sync`
 
-1. Gib deinem Agenten dieses Repository.
-2. Sage ihm, dass du den Skill verwenden möchtest.
-3. Der Agent soll dann `SKILL.md` lesen, die Voraussetzungen prüfen, das lokale Setup einrichten und gemeinsam mit dir die Tonies im Haushalt konfigurieren.
+`setup-local` checkt genau diesen Stand aus und installiert ihn lokal editable.
 
-Explizit dokumentiert ist die Nutzung mit:
+## Wichtige Dateien
 
-- **Hermes Agent**
-- **OpenClaw**
+- `SKILL.md` — operative Skill-Anleitung für Agenten
+- `scripts/tonie_sync.py` — Helper-CLI für Setup, Config und Sync
+- `references/tonies.example.toml` — anonymes Beispiel für die lokale Tonie-Konfiguration
+- `references/tonies.md` — Referenz zur `tonies.toml`
+- `references/podcasts.md` — Hintergrund zum Podcast-Katalog
 
-## Schnellstart
+## Typischer Ablauf
 
-Wenn du das Repository einfach einem Agenten geben willst, reicht in der Praxis oft dieser Auftrag:
-
-```text
-Hier ist ein Skill-Repository. Bitte verwende diesen Skill.
-Lies zuerst SKILL.md, prüfe das Setup mit doctor,
-richte tonie-podcast-sync lokal ein und hilf mir danach,
-meine Kreativ-Tonies sauber zu konfigurieren.
-```
-
-Falls dein Agent kein automatisches Skill-Loading hat, sag zusätzlich explizit dazu, dass er die Datei `SKILL.md` als Hauptanleitung verwenden soll.
-
-## Wichtige Eigenschaften
-
-- **Keine privaten Tonie-IDs im Repository**
-- **Lokale Konfiguration pro Haushalt** über `tonies.toml`
-- **Klarer Discovery-Workflow**: erst Tonies finden, dann Namen/Aliasse lokal eintragen
-- **Podcast-Katalog enthalten**
-- **Freie RSS-URLs zusätzlich unterstützt**
-- **Neutral gehalten**: keine persönlichen Referenzen auf ein konkretes Setup
-
-## Repository-Inhalt
-
-- `SKILL.md` – operative Anleitung für KI-Agenten
-- `scripts/tonie_sync.py` – Helper-CLI für Setup, Discovery, Zuweisung und Sync
-- `references/tonies.md` – detaillierte Anleitung für Tonie-ID-Findung und lokale Zuordnung
-- `references/tonies.example.toml` – anonyme Beispielkonfiguration
-- `references/podcasts.md` – eingebauter Podcast-Katalog
-- `agents/openai.yaml` – minimales Agent-Metadatenbeispiel
-
-## Wie ein Agent den Skill typischerweise verwendet
-
-Der erwartete Ablauf ist:
-
-1. `python3 scripts/tonie_sync.py doctor`
-2. Falls Upstream oder virtuelle Umgebung fehlen:
-   - `python3 scripts/tonie_sync.py setup-local --python python3`
-3. Falls Zugangsdaten fehlen:
-   - Umgebungsvariablen prüfen
-   - optional `TONIE_SYNC_SKILL_ENV_FILE` setzen
-   - dann `python3 scripts/tonie_sync.py bootstrap-secrets`
-4. Falls noch keine lokale Tonie-Zuordnung existiert:
-   - `python3 scripts/tonie_sync.py init-config`
-5. Kreativ-Tonies ermitteln:
-   - `python3 scripts/tonie_sync.py discover-tonies`
-6. Die echten Tonies des Haushalts in die lokale `tonies.toml` eintragen:
-   - ID
-   - Name
-   - Aliasse
-   - optional Standard-Podcast und Sync-Parameter
-7. Danach Podcast zuweisen oder synchronisieren.
-
-## Lokale Pfade und Konfiguration
-
-### Upstream-Installation
-
-Der Skill installiert das Upstream-Projekt standardmäßig nach:
-
-```text
-~/.local/share/tonie-podcast-sync
-```
-
-Override über:
-
-```text
-TONIE_PODCAST_SYNC_PROJECT_DIR
-```
-
-### Lokale Tonie-Zuordnung
-
-Standardpfad für die lokale Mapping-Datei:
-
-```text
-~/.config/tonie-podcast-sync-skill/tonies.toml
-```
-
-Override über:
-
-```text
-TONIE_SYNC_SKILL_CONFIG
-```
-
-### Lokale Settings/Secrets des Upstream-Projekts
-
-Standardverzeichnis:
-
-```text
-~/.toniepodcastsync
-```
-
-Override über:
-
-```text
-TONIE_PODCAST_SYNC_SETTINGS_DIR
-```
-
-## Zugangsdaten
-
-Der Skill erwartet Tonie-Cloud-Zugangsdaten über Umgebungsvariablen.
-
-Unterstützte Variablen-Paare:
-
-- `TPS_TONIE_CLOUD_ACCESS_USERNAME` + `TPS_TONIE_CLOUD_ACCESS_PASSWORD`
-- `TONIE_CLOUD_ACCESS_USERNAME` + `TONIE_CLOUD_ACCESS_PASSWORD`
-- `TONIE_CLOUD_USERNAME` + `TONIE_CLOUD_PASSWORD`
-- `TONIE_USERNAME` + `TONIE_PASSWORD`
-
-Optional kann zusätzlich eine Env-Datei angegeben werden über:
-
-```text
-TONIE_SYNC_SKILL_ENV_FILE
-```
-
-Wenn `TONIE_SYNC_SKILL_ENV_FILE` **nicht** gesetzt ist, sucht der Skill der Reihe nach in:
-
-- `~/.env`
-- `~/.hermes/.env`
-- `~/.openclaw/.env`
-
-Beispiel für eine lokale Env-Datei:
-
-```dotenv
-TONIE_USERNAME=dein-login@example.org
-TONIE_PASSWORD=dein-passwort
-```
-
-Die Datei gehört **nur lokal** auf deinen Rechner und **nie** ins Repository.
-
-## Tonies im Haushalt eintragen
-
-Der Skill shippt absichtlich **keine** echten Haushaltsdaten mit.
-
-Der Agent soll die Tonies des Haushalts nach der Discovery in die lokale `tonies.toml` eintragen. Dabei werden pro Tonie typischerweise gepflegt:
-
-- `id` – echte Kreativ-Tonie-ID
-- `name` – sprechender Name, z. B. `Benjamins Kreativ-Tonie`
-- `aliases` – alternative Ansprachnamen, z. B. `benjamin`, `blauer tonie`, `einschlaf tonie`
-- `default_podcast` – optionaler Podcast-Alias aus dem Katalog
-- weitere Sync-Parameter wie `maximum_length`, `wipe`, `episode_sorting`
-
-Details dazu stehen in:
-
-- `references/tonies.md`
-- `references/tonies.example.toml`
-
-## Podcast-Zuweisung
-
-### Eingebauter Katalog
-
-Eine kuratierte Liste deutschsprachiger Podcasts ist eingebaut. Beispiele:
-
-- `maus`
-- `maus-gute-nacht`
-- `pumuckl`
-- `checker-tobi`
-- `ohrenbaer`
-- `kakadu`
-
-Vollständige Liste:
-
-- `references/podcasts.md`
-- oder per CLI: `python3 scripts/tonie_sync.py list-podcasts`
-
-### Freie RSS-URLs
-
-Zusätzlich kann statt eines bekannten Alias auch direkt eine Feed-URL angegeben werden, zum Beispiel:
+### 1. Lokales Upstream-Projekt einrichten
 
 ```bash
-python3 scripts/tonie_sync.py assign --tonie benjamin-kreativ --podcast https://example.org/feed.xml
+python3 scripts/tonie_sync.py setup-local
 ```
 
-## Beispiel-Kommandos
-
-Voraussetzungen prüfen:
-
-```bash
-python3 scripts/tonie_sync.py doctor
-```
-
-Upstream lokal einrichten:
-
-```bash
-python3 scripts/tonie_sync.py setup-local --python python3
-```
-
-Secrets aus Env übernehmen:
+### 2. Secrets aus vorhandenen Env-Dateien bootstrapen
 
 ```bash
 python3 scripts/tonie_sync.py bootstrap-secrets
 ```
 
-Starter-Konfiguration schreiben:
+### 3. Beispiel-Konfiguration anlegen
 
 ```bash
 python3 scripts/tonie_sync.py init-config
 ```
 
-Kreativ-Tonies auf dem Konto anzeigen:
+### 4. Kreativ-Tonies entdecken
 
 ```bash
 python3 scripts/tonie_sync.py discover-tonies
 ```
 
-Bekannte lokale Tonies anzeigen:
-
-```bash
-python3 scripts/tonie_sync.py list-tonies
-```
-
-Podcast-Katalog anzeigen:
-
-```bash
-python3 scripts/tonie_sync.py list-podcasts
-```
-
-Aktuelle Zuordnungen anzeigen:
+### 5. Tonie-Defaults prüfen
 
 ```bash
 python3 scripts/tonie_sync.py show-config
 ```
 
-Podcast auf einen Tonie legen:
+## Beispiele
+
+Podcast zuweisen:
 
 ```bash
-python3 scripts/tonie_sync.py assign --tonie benjamin-kreativ --podcast pumuckl
+python3 scripts/tonie_sync.py assign --tonie benjamin --podcast pumuckl
 ```
 
-Podcast zuweisen und sofort synchronisieren:
+Lokalen Ordner zuweisen:
 
 ```bash
-python3 scripts/tonie_sync.py assign-and-sync --tonie benjamin-kreativ --podcast maus-gute-nacht
+python3 scripts/tonie_sync.py assign --tonie schlaflieder --audio-folder ~/Audio/Schlaflieder --episode-sorting alphabetical
+```
+
+Explizite Dateiliste zuweisen und sofort synchronisieren:
+
+```bash
+python3 scripts/tonie_sync.py assign-and-sync \
+  --tonie favoriten \
+  --audio-file ~/Audio/01-intro.mp3 \
+  --audio-file ~/Audio/02-geschichte.mp3 \
+  --episode-sorting manual
 ```
 
 Alle konfigurierten Tonies synchronisieren:
@@ -271,60 +89,37 @@ Alle konfigurierten Tonies synchronisieren:
 python3 scripts/tonie_sync.py sync --tonie all
 ```
 
-## Nutzung mit Hermes Agent
+## Doctor
 
-Für Hermes genügt in der Praxis ein kurzer Auftrag wie:
+```bash
+python3 scripts/tonie_sync.py doctor
+```
 
-- "Hier ist ein Skill-Repository. Bitte verwende diesen Tonie-Podcast-Skill."
-- "Lies `SKILL.md`, richte das lokale Setup ein und hilf mir, meine Kreativ-Tonies zu konfigurieren."
+`doctor` prüft jetzt zusätzlich:
 
-Der Agent sollte dann:
+- ob das erwartete Repo/der erwartete Branch verwendet wird
+- ob die lokale CLI `sync-local-files` kennt
+- welche Quellen in der lokalen `tonies.toml` konfiguriert sind
 
-- den Skill lesen
-- `doctor` ausführen
-- bei Bedarf das Upstream-Projekt nach `~/.local/share/tonie-podcast-sync` installieren
-- deine Tonies finden
-- die lokale `tonies.toml` befüllen
-- danach gewünschte Podcasts zuweisen und synchronisieren
+## Konfigurationsmodell
 
-## Nutzung mit OpenClaw
+Der Skill persistiert die gewählte Quelle direkt in die operative `settings.toml` des Upstream-Projekts.
 
-Für OpenClaw gilt derselbe Ansatz:
+Beispiele:
 
-- Repository zeigen
-- sagen, dass der Skill verwendet werden soll
-- den Agenten `SKILL.md` lesen lassen
-- danach Setup, Discovery und lokale Konfiguration gemeinsam durchführen
+- `podcast = "https://..."`
+- `audio_folder = "/Users/flo/..."`
+- `audio_files = ["/Users/flo/...", ...]`
 
-## Agent-Metadaten
+Damit bleibt das Skill-Modell nah am Upstream-Schema und vermeidet doppelte Sonderlogik.
 
-Unter `agents/openai.yaml` liegt ein kleines, bewusst schlichtes Metadatenbeispiel für Agent-Setups, die solche Zusatzdateien auswerten.
+## Sicherheit
 
-- `SKILL.md` bleibt die eigentliche operative Quelle.
-- `README.md` ist die menschenlesbare Einführung.
-- `agents/openai.yaml` ist optional und nur ein Hilfssignal für Tooling, das Skill-Repositories indexieren oder anzeigen möchte.
+- Keine echten Tonie-IDs ins Repo committen
+- Keine Zugangsdaten ins Repo committen
+- `tonies.toml` lokal halten
+- `.secrets.toml` lokal halten
 
-## Hinweise für Veröffentlichung und Betrieb
+## Lizenz / Haftung
 
-- Dieses Repository enthält **nur** anonyme Beispiele.
-- Echte Tonie-IDs gehören **nicht** ins Repository.
-- Zugangsdaten gehören **nicht** ins Repository.
-- Die lokale `tonies.toml` ist haushaltsspezifisch.
-- Die lokale `.secrets.toml` des Upstream-Projekts ist haushaltsspezifisch.
-
-## Haftungsausschluss
-
-Dieses Repository wird **as is** bereitgestellt, ohne Gewähr oder Zusicherung irgendeiner Art.
-
-- Keine Garantie für Funktion, Stabilität oder Eignung für einen bestimmten Zweck
-- Keine Haftung für Datenverlust, Fehlkonfigurationen oder Änderungen an Tonie-Inhalten
-- Keine offizielle Verbindung zu Tonies, tonies®, Toniebox oder Boxine GmbH
-- Das Upstream-Projekt `tonie-podcast-sync` bleibt separat und unter seiner eigenen Lizenz und Verantwortung
-
-## Danksagung
-
-Dieses Repository baut konzeptionell auf dem Upstream-Projekt [`tonie-podcast-sync`](https://github.com/alexhartm/tonie-podcast-sync) auf.
-
-Die Podcast-Liste basiert auf einer deutschsprachigen Community-Sammlung, unter anderem aus dieser Reddit-Diskussion:
-
-- <https://www.reddit.com/r/Eltern/comments/13g7x5i/comment/lwth5li/>
+Dieses Repository ist nur eine Skill-Hülle um das separate Projekt `tonie-podcast-sync` und wird ohne Gewähr bereitgestellt.

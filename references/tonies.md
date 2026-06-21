@@ -1,184 +1,128 @@
-# Tonies
+# `tonies.toml`
 
-Diese Referenz erklärt, wie ein Agent oder Mensch die echten Kreativ-Tonies eines Haushalts findet und danach sauber in die lokale `tonies.toml` übernimmt.
+Die lokale Skill-Konfiguration lebt standardmäßig unter:
 
-Der Skill enthält absichtlich **keine** echten Tonie-IDs.
+- `~/.config/tonie-podcast-sync-skill/tonies.toml`
 
-## Grundidee
+Optional kann ein anderer Pfad gesetzt werden über:
 
-Der Workflow ist immer:
+- `TONIE_SYNC_SKILL_CONFIG=/pfad/zur/tonies.toml`
 
-1. Zugangsdaten lokal verfügbar machen
-2. Discovery mit dem Upstream-Tool ausführen
-3. echte Kreativ-Tonie-IDs ablesen
-4. diese Tonies in die lokale `tonies.toml` eintragen
-5. sprechende Namen und natürliche Aliasse vergeben
+## Ziel
 
-## Zugangsdaten vorbereiten
+Diese Datei beschreibt die *haushaltsspezifischen* Tonies und deren gewünschte Inhaltsquelle.
 
-Unterstützte Variablen-Paare:
+Der Skill übernimmt daraus die Defaults und schreibt sie in die `settings.toml` des Upstream-Projekts.
 
-- `TPS_TONIE_CLOUD_ACCESS_USERNAME` + `TPS_TONIE_CLOUD_ACCESS_PASSWORD`
-- `TONIE_CLOUD_ACCESS_USERNAME` + `TONIE_CLOUD_ACCESS_PASSWORD`
-- `TONIE_CLOUD_USERNAME` + `TONIE_CLOUD_PASSWORD`
-- `TONIE_USERNAME` + `TONIE_PASSWORD`
+## Grundregel
 
-Optional kann eine konkrete Env-Datei übergeben werden:
+Jeder `[tonies.<slug>]`-Eintrag braucht:
 
-```text
-TONIE_SYNC_SKILL_ENV_FILE=/pfad/zu/.env
-```
+- `id`
+- `name`
+- optional `aliases`
+- **genau eine** Quelle:
+  - `podcast`
+  - `audio_folder`
+  - `audio_files`
 
-Wenn `TONIE_SYNC_SKILL_ENV_FILE` nicht gesetzt ist, sucht der Skill standardmäßig in:
+Die Quellen sind gegenseitig exklusiv.
 
-```text
-~/.env
-~/.hermes/.env
-~/.openclaw/.env
-```
-
-## Kreativ-Tonies finden
-
-Bevor IDs in die lokale Zuordnung eingetragen werden, Discovery ausführen:
-
-```bash
-python3 scripts/tonie_sync.py discover-tonies
-```
-
-Dieser Befehl reicht die Upstream-Discovery durch:
-
-```bash
-tonie-podcast-sync list-tonies
-```
-
-Erwartung:
-
-- Du siehst die Kreativ-Tonies des Kontos
-- inklusive ihrer IDs
-- oft auch mit Cloud-seitigen Namen oder erkennbaren Beschriftungen
-
-## Wie man die IDs sinnvoll übernimmt
-
-Ein Agent soll die Ausgabe nicht blind nur als technische UUID behandeln, sondern zusammen mit dem Menschen klären:
-
-- Welcher physische Tonie gehört zu welchem Kind?
-- Welcher Tonie ist z. B. der Einschlaf-Tonie?
-- Welche Namen benutzt der Haushalt im Alltag wirklich?
-
-Dann trägt der Agent genau diese Realität in die lokale `tonies.toml` ein.
-
-## Lokale Mapping-Datei erzeugen
-
-Wenn noch keine Datei existiert:
-
-```bash
-python3 scripts/tonie_sync.py init-config
-```
-
-Standardpfad:
-
-```text
-~/.config/tonie-podcast-sync-skill/tonies.toml
-```
-
-Die Datei kann über `TONIE_SYNC_SKILL_CONFIG` an einen anderen Ort gelegt werden.
-
-## Wie die lokale `tonies.toml` aufgebaut ist
-
-Beispiel:
+## Podcast-Quelle
 
 ```toml
-[tonies.benjamin-kreativ]
-id = "12345678-1234-1234-1234-123456789abc"
-name = "Benjamins Kreativ-Tonie"
-aliases = ["benjamin", "blauer tonie", "einschlaf tonie"]
-default_podcast = "maus-gute-nacht"
+[tonies.abend]
+id = "..."
+name = "Abend-Tonie"
+podcast = "https://example.com/feed.xml"
 episode_sorting = "random"
 maximum_length = 60
 wipe = true
 ```
 
-## Bedeutung der Felder
+Hinweise:
 
-### Section-Key
+- `podcast` soll direkt die Feed-URL enthalten.
+- Beim CLI-Befehl `assign --podcast pumuckl` darf weiterhin ein Katalog-Alias verwendet werden; der Skill löst ihn dann in die echte Feed-URL auf und persistiert diese.
+- `excluded_title_strings` und `pinned_episode_names` sind nur für Podcast-Quellen sinnvoll.
 
-```toml
-[tonies.benjamin-kreativ]
-```
-
-- Das ist der **kanonische Slug**
-- er sollte kurz, stabil und maschinenfreundlich sein
-- empfohlen: Kleinbuchstaben und Bindestriche
-
-### `id`
+## Lokaler Ordner als Quelle
 
 ```toml
-id = "12345678-1234-1234-1234-123456789abc"
+[tonies.schlaflieder]
+id = "..."
+name = "Schlaflieder"
+audio_folder = "/Users/flo/Audio/Schlaflieder"
+episode_sorting = "alphabetical"
+maximum_length = 45
+wipe = false
 ```
 
-- echte Kreativ-Tonie-ID aus der Discovery
-- nie raten
-- nie eine Beispiel-ID belassen
+Hinweise:
 
-### `name`
+- Der Ordnerpfad wird mit `~`-Expansion gespeichert.
+- Sinnvolle Sortierungen für lokale Audioquellen sind:
+  - `alphabetical`
+  - `manual` (vor allem bei `audio_files`)
+
+## Explizite Dateiliste als Quelle
 
 ```toml
-name = "Benjamins Kreativ-Tonie"
+[tonies.favoriten]
+id = "..."
+name = "Favoriten"
+audio_files = [
+  "/Users/flo/Audio/01-intro.mp3",
+  "/Users/flo/Audio/02-geschichte.mp3",
+]
+episode_sorting = "manual"
+maximum_length = 35
+wipe = true
 ```
 
-- menschenfreundlicher Anzeigename
-- darf ruhig so heißen, wie der Haushalt wirklich darüber spricht
+Hinweise:
 
-### `aliases`
+- Reihenfolge der Liste bleibt erhalten.
+- `manual` ist hier meist die beste Wahl.
+
+## Unterstützte Felder
+
+Pflicht:
+
+- `id`: Tonie-ID aus Tonie Cloud
+- `name`: Menschlich lesbarer Name
+
+Optional:
+
+- `aliases`: Zusätzliche Bezeichner für `assign --tonie ...`
+- `podcast`: RSS-Feed-URL
+- `audio_folder`: Lokaler Ordner mit Audiodateien
+- `audio_files`: Explizite Liste lokaler Audiodateien
+- `episode_sorting`: `by_date_newest_first`, `by_date_oldest_first`, `random`, `alphabetical`, `manual`
+- `maximum_length`: Maximale Gesamtdauer in Minuten
+- `episode_min_duration_sec`: Mindestdauer pro Track
+- `episode_max_duration_sec`: Maximaldauer pro Track
+- `volume_adjustment`: Lautstärkeanpassung
+- `excluded_title_strings`: Nur für Podcasts
+- `pinned_episode_names`: Nur für Podcasts
+- `wipe`: Vor dem Upload leeren oder nicht
+
+## Legacy-Kompatibilität
+
+Ältere Skill-Konfigurationen mit:
 
 ```toml
-aliases = ["benjamin", "blauer tonie", "einschlaf tonie"]
+default_podcast = "pumuckl"
 ```
 
-- alternative Namen
-- Dinge, die der Nutzer wahrscheinlich im Gespräch sagt
-- helfen dem Agenten, denselben Tonie auch bei ungenauer Formulierung korrekt zu treffen
+werden weiterhin gelesen. Der Skill wandelt das intern in die passende Feed-URL um.
 
-### `default_podcast`
+Für neue Einträge soll aber direkt `podcast = "https://..."` verwendet werden.
 
-```toml
-default_podcast = "maus-gute-nacht"
-```
+## Wichtige Trennung
 
-- optional
-- ein Alias aus dem eingebauten Podcast-Katalog
-- nützlich für `restore-defaults` und als Ausgangsbelegung
+- `tonies.toml` = Wunschzustand des Haushalts
+- `~/.toniepodcastsync/settings.toml` = operative Upstream-Konfiguration
+- `~/.toniepodcastsync/.secrets.toml` = Zugangsdaten
 
-## Gute Alias-Strategie
-
-Sinnvolle Aliasse sind oft eine Mischung aus:
-
-- Personenbezug: `benjamin`, `emma`
-- Farbe/Form: `blauer tonie`, `orangener tonie`
-- Funktion: `einschlaf tonie`, `geschichten tonie`
-- Haushaltsinterne Kurzform: `benni tonie`
-
-Weniger gut sind Aliasse, die:
-
-- mehrdeutig sind
-- sich mit anderen Tonies stark überschneiden
-- nur technische UUID-Fragmente enthalten
-
-## Empfohlener Gesprächsablauf mit dem Menschen
-
-Ein Agent sollte nach der Discovery ungefähr so vorgehen:
-
-1. Die gefundenen Kreativ-Tonies anzeigen
-2. Den Menschen fragen, welcher gefundene Tonie welcher physische Tonie ist
-3. Daraus einen stabilen Slug ableiten
-4. Einen lesbaren `name` setzen
-5. 2–4 natürliche `aliases` ergänzen
-6. Alles in die lokale `tonies.toml` schreiben
-
-## Wichtige Regel
-
-Die lokale `tonies.toml` ist **haushaltsspezifisch**.
-
-- Sie darf lokal geändert werden
-- sie soll **nicht** mit echten Haushaltsdaten veröffentlicht werden
-- sie dient genau dazu, dass ein Agent mit sprechenden Namen arbeiten kann, ohne private Daten ins Skill-Repository zu schreiben
+`tonies.toml` gehört nicht mit echten IDs ins öffentliche Repo.

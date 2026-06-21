@@ -1,266 +1,209 @@
 ---
 name: tonie-podcast-sync
-description: Use when a user wants an agent to set up or operate a local tonie-podcast-sync workflow for Kreativ-Tonies: check prerequisites, install the upstream tool locally, discover creative tonie IDs, maintain a local tonies.toml with household-specific names and aliases, assign podcasts from the built-in German catalog or a direct RSS feed URL, and sync one or more configured Tonies.
-version: 1.0.0
-author: FlorianCP / Hermes Agent
-license: MIT
-metadata:
-  hermes:
-    tags: [toniebox, tonies, podcast, rss, audio, family, automation]
-    related_skills: []
+summary: Richte tonie-podcast-sync lokal ein, verwalte Kreativ-Tonies über tonies.toml und synchronisiere Podcasts oder lokale Audiodateien auf Tonieboxen.
 ---
 
-# Tonie Podcast Sync
+# tonie-podcast-sync
 
-## Overview
+Nutze diesen Skill, wenn ein Kreativ-Tonie mit Podcast-Folgen oder lokalen Audiodateien befüllt, repariert oder neu zugeordnet werden soll.
 
-Dieser Skill hilft einem KI-Agenten dabei, ein lokales Setup auf Basis von `tonie-podcast-sync` zu prüfen, einzurichten und zu bedienen.
+## Was dieser Skill kann
 
-Der Skill shippt **keine** echten Tonie-IDs und **keine** Zugangsdaten. Stattdessen arbeitet er mit:
+- lokales `tonie-podcast-sync`-Setup aufbauen
+- vorhandene Tonie-Zugangsdaten in `.secrets.toml` bootstrapen
+- Kreativ-Tonies entdecken
+- eine lokale `tonies.toml` als Wunschzustand pflegen
+- Podcasts, Audio-Ordner oder explizite Audio-Dateien pro Tonie zuweisen
+- einzelne oder alle Tonies synchronisieren
+- lokale Installation und Config mit `doctor` prüfen
 
-- Umgebungsvariablen für Tonie-Cloud-Zugangsdaten
-- einer lokalen `tonies.toml` pro Haushalt
-- einer lokalen Installation des Upstream-Projekts
-- einem eingebauten deutschsprachigen Podcast-Katalog
-- optional direkten RSS-Feed-URLs
+## Wichtige lokale Pfade
 
-## When to Use
+- Skill-Repo: `/Users/flo/Projects/agent-skills/tonie-podcast-sync-skill`
+- Upstream-Arbeitskopie: `~/.local/share/tonie-podcast-sync`
+- Skill-Konfiguration: `~/.config/tonie-podcast-sync-skill/tonies.toml`
+- Operative Settings: `~/.toniepodcastsync/settings.toml`
+- Secrets: `~/.toniepodcastsync/.secrets.toml`
 
-Nutze diesen Skill, wenn der Nutzer zum Beispiel sagt:
+## Aktueller Sonderfall: harter Fork/Branch
 
-- "Richte meine Kreativ-Tonies mit Podcasts ein"
-- "Finde heraus, welche Kreativ-Tonies auf meinem Konto sind"
-- "Lege Pumuckl auf Benjamins Kreativ-Tonie"
-- "Synchronisiere neue Folgen auf alle Tonies"
-- "Hilf mir, die Tonie-IDs sauber in einer lokalen Mapping-Datei zu pflegen"
+Bis die lokalen Audio-Erweiterungen upstream integriert sind, muss dieser Skill absichtlich Florians Fork und Branch verwenden:
 
-Nicht verwenden für:
+- Repo: `git@github.com:FlorianCP/tonie-podcast-sync.git`
+- Branch: `feature/local-mp3-sync`
 
-- normale Tonies ohne Kreativ-Tonie-Workflow
-- direkte Cloud- oder API-Integrationen außerhalb des Upstream-Projekts
-- Fälle, in denen echte Haushaltsdaten ins Repository geschrieben werden sollen
+`setup-local` stellt genau diesen Stand her. Nicht stillschweigend auf PyPI oder das alte Upstream-Repo zurückfallen.
 
-## Resources
+## Regeln
 
-- Operatives Skript: `scripts/tonie_sync.py`
-- Tonie-Discovery und lokale Zuordnung: `references/tonies.md`
-- Beispielkonfiguration: `references/tonies.example.toml`
-- Podcast-Katalog: `references/podcasts.md`
-- README für Menschen: `README.md`
+1. Erst `doctor` oder Dateistand prüfen, dann ändern.
+2. Keine echten IDs oder Secrets ins Repository schreiben.
+3. In `tonies.toml` pro Tonie **genau eine** Quelle verwenden:
+   - `podcast`
+   - `audio_folder`
+   - `audio_files`
+4. Podcast-Katalog behalten und für Alias-Auflösung nutzen.
+5. Die operative `settings.toml` soll das Upstream-nahe Schema enthalten, nicht eine zweite proprietäre Skill-Sonderlogik.
 
-## Operating Principles
+## Standardablauf
 
-- **Nie Tonie-IDs raten.** Immer echte Discovery verwenden.
-- **Keine privaten Haushaltsdaten ins Repository schreiben.**
-- **Erst prüfen, dann einrichten, dann syncen.**
-- **Namen und Aliasse gehören in die lokale `tonies.toml`.**
-- **Secrets nur lokal aus Env/Env-Datei übernehmen.**
-- **Wenn ein Podcast-Alias nicht passt, ist eine direkte RSS-URL erlaubt.**
+### 1. Diagnose
 
-## Local Paths and Defaults
-
-Standardpfade:
-
-- Upstream-Projekt: `~/.local/share/tonie-podcast-sync`
-- lokale Tonie-Zuordnung: `~/.config/tonie-podcast-sync-skill/tonies.toml`
-- Upstream-Settings: `~/.toniepodcastsync/settings.toml`
-- Upstream-Secrets: `~/.toniepodcastsync/.secrets.toml`
-
-Override-Variablen:
-
-- `TONIE_PODCAST_SYNC_PROJECT_DIR`
-- `TONIE_SYNC_SKILL_CONFIG`
-- `TONIE_PODCAST_SYNC_SETTINGS_DIR`
-- `TONIE_SYNC_SKILL_ENV_FILE`
-
-## Credentials
-
-Unterstützte Zugangsdaten-Paare:
-
-- `TPS_TONIE_CLOUD_ACCESS_USERNAME` + `TPS_TONIE_CLOUD_ACCESS_PASSWORD`
-- `TONIE_CLOUD_ACCESS_USERNAME` + `TONIE_CLOUD_ACCESS_PASSWORD`
-- `TONIE_CLOUD_USERNAME` + `TONIE_CLOUD_PASSWORD`
-- `TONIE_USERNAME` + `TONIE_PASSWORD`
-
-Wenn `TONIE_SYNC_SKILL_ENV_FILE` gesetzt ist, wird **nur diese Datei** durchsucht.
-
-Wenn `TONIE_SYNC_SKILL_ENV_FILE` **nicht** gesetzt ist, sucht der Skill in:
-
-- `~/.env`
-- `~/.hermes/.env`
-- `~/.openclaw/.env`
-
-## Recommended Workflow
-
-### 1) Diagnose zuerst
+Führe zuerst aus:
 
 ```bash
 python3 scripts/tonie_sync.py doctor
 ```
 
-Wenn etwas fehlt, benenne die fehlenden Teile konkret:
+Wenn das Setup fehlt, richte es ein.
 
-- Projektordner
-- Venv
-- CLI
-- Settings
-- Secrets
-- lokale Tonie-Konfiguration
-- Env-Zugangsdaten
-
-### 2) Upstream lokal einrichten, falls nötig
+### 2. Lokales Projekt einrichten
 
 ```bash
-python3 scripts/tonie_sync.py setup-local --python python3
+python3 scripts/tonie_sync.py setup-local
 ```
 
-Das installiert das Upstream-Projekt standardmäßig nach:
+Das Kommando soll:
 
-```text
-~/.local/share/tonie-podcast-sync
-```
+- das erwartete Repo klonen oder aktualisieren
+- den erwarteten Branch auschecken
+- eine lokale venv anlegen
+- das Projekt editable installieren
 
-### 3) Secrets aus Env übernehmen
+### 3. Secrets bootstrapen
 
 ```bash
 python3 scripts/tonie_sync.py bootstrap-secrets
 ```
 
-Wenn keine passenden Variablen gefunden werden, erkläre dem Nutzer klar:
+Der Skill sucht Zugangsdaten in:
 
-- welche Variablenpaare unterstützt werden
-- welche Env-Dateien durchsucht wurden
-- dass Zugangsdaten lokal gesetzt werden müssen, bevor Discovery oder Sync funktionieren
+- `~/.env`
+- `~/.hermes/.env`
+- `~/.openclaw/.env`
+- oder explizit `TONIE_SYNC_SKILL_ENV_FILE`
 
-### 4) Starter-Datei für die lokale Tonie-Zuordnung erzeugen
+### 4. Lokale Wunschkonfiguration anlegen
+
+Falls noch nicht vorhanden:
 
 ```bash
 python3 scripts/tonie_sync.py init-config
 ```
 
-Die erzeugte Datei ist ein anonymes Template. Der Agent muss danach die echten Tonies des Haushalts eintragen.
+Dann `~/.config/tonie-podcast-sync-skill/tonies.toml` mit echten lokalen Werten befüllen.
 
-### 5) Echte Kreativ-Tonies finden
+### 5. Tonies entdecken
 
 ```bash
 python3 scripts/tonie_sync.py discover-tonies
 ```
 
-Diese Discovery soll die Upstream-CLI durchreichen. Nicht heuristisch aus alten Dateien ableiten.
-
-### 6) Lokale `tonies.toml` befüllen
-
-Jetzt wird die eigentliche Haushaltszuordnung gepflegt.
-
-Für jeden Kreativ-Tonie sollen typischerweise eingetragen werden:
-
-- `id` – echte Kreativ-Tonie-ID aus der Discovery
-- `name` – sprechender Anzeigename, z. B. `Benjamins Kreativ-Tonie`
-- `aliases` – natürliche Alternativnamen, z. B. `benjamin`, `schlaf tonie`, `blauer tonie`
-- `default_podcast` – optionaler Katalog-Alias
-- weitere Sync-Optionen bei Bedarf
-
-Wichtig:
-
-- Die **Section** wie `tonies.benjamin-kreativ` ist der kanonische interne Slug.
-- `name` ist der lesbare Anzeigename.
-- `aliases` sind die Wörter, mit denen der Nutzer den Tonie wahrscheinlich erwähnt.
-- Der Agent darf diese Datei lokal schreiben oder ergänzen, aber nicht ins Repository committen.
-
-Siehe dazu:
-
-- `references/tonies.md`
-- `references/tonies.example.toml`
-
-### 7) Podcasts zuweisen
-
-Bekannten Katalog-Alias verwenden:
+### 6. Defaults und Zuordnungen prüfen
 
 ```bash
-python3 scripts/tonie_sync.py assign --tonie benjamin-kreativ --podcast pumuckl
+python3 scripts/tonie_sync.py show-config
 ```
 
-Direkte RSS-URL verwenden:
+## Zuordnungen
+
+### Podcast
 
 ```bash
-python3 scripts/tonie_sync.py assign --tonie benjamin-kreativ --podcast https://example.org/feed.xml
+python3 scripts/tonie_sync.py assign --tonie benjamin --podcast pumuckl
 ```
 
-### 8) Zuweisen und sofort synchronisieren
+Oder direkte Feed-URL:
 
 ```bash
-python3 scripts/tonie_sync.py assign-and-sync --tonie benjamin-kreativ --podcast maus-gute-nacht
+python3 scripts/tonie_sync.py assign --tonie benjamin --podcast https://example.com/feed.xml
 ```
 
-### 9) Bereits konfigurierte Tonies synchronisieren
-
-Ein Tonie:
+### Lokaler Audio-Ordner
 
 ```bash
-python3 scripts/tonie_sync.py sync --tonie benjamin-kreativ
+python3 scripts/tonie_sync.py assign --tonie schlaflieder --audio-folder ~/Audio/Schlaflieder --episode-sorting alphabetical
 ```
 
-Alle Tonies:
+### Explizite Dateiliste
+
+```bash
+python3 scripts/tonie_sync.py assign \
+  --tonie favoriten \
+  --audio-file ~/Audio/01-intro.mp3 \
+  --audio-file ~/Audio/02-geschichte.mp3 \
+  --episode-sorting manual
+```
+
+### Sofort zuweisen und synchronisieren
+
+```bash
+python3 scripts/tonie_sync.py assign-and-sync --tonie benjamin --podcast maus-gute-nacht
+```
+
+## Synchronisieren
+
+Alle:
 
 ```bash
 python3 scripts/tonie_sync.py sync --tonie all
 ```
 
-### 10) Aktuellen Stand prüfen
+Einzelnen Tonie:
 
 ```bash
-python3 scripts/tonie_sync.py list-tonies
-python3 scripts/tonie_sync.py list-podcasts
-python3 scripts/tonie_sync.py show-config
+python3 scripts/tonie_sync.py sync --tonie benjamin
 ```
 
-## Intent Mapping
+## Wichtige Felder
 
-- "Welche Kreativ-Tonies gibt es auf dem Konto?" → `discover-tonies`
-- "Mach bitte eine Starter-Datei für die Tonies" → `init-config`
-- "Trag Benjamins Tonie mit seiner ID ein" → lokale `tonies.toml` editieren
-- "Was kann ich auf den Tonie legen?" → `list-podcasts` oder `references/podcasts.md`
-- "Nimm statt Katalog bitte diesen Feed" → `assign --podcast <https://...>`
-- "Sync alles" → `sync --tonie all`
+Für alle Quellen möglich:
 
-## Common Pitfalls
+- `episode_sorting`
+- `maximum_length`
+- `episode_min_duration_sec`
+- `episode_max_duration_sec`
+- `volume_adjustment`
+- `wipe`
 
-1. **Tonie-IDs geraten statt entdeckt**
-   - Immer zuerst `discover-tonies`.
+Nur für Podcasts sinnvoll:
 
-2. **Haushaltsdaten ins Repo schreiben**
-   - Echte IDs, Namen und Aliasse gehören nur in die lokale `tonies.toml`.
+- `excluded_title_strings`
+- `pinned_episode_names`
 
-3. **Secrets im Repo oder in Commit-Historie speichern**
-   - Secrets nur lokal über Env oder Env-Datei.
+Empfohlene Sortierungen:
 
-4. **Discovery-Ergebnis nicht in sprechende Namen übersetzen**
-   - Die rohe ID allein ist für den Nutzer unpraktisch. Immer `name` und `aliases` sinnvoll pflegen.
+- Podcasts: `by_date_newest_first`, `by_date_oldest_first`, `random`
+- Lokale Dateien: `alphabetical`, `manual`
 
-5. **Alias mit Feed-URL verwechseln**
-   - Katalog-Alias oder direkte `http(s)`-RSS-URL verwenden. Wenn ein Alias unbekannt ist, `list-podcasts` prüfen.
+## Doctor-Interpretation
 
-6. **Sync ohne funktionierendes Upstream-Setup starten**
-   - Erst `doctor`, dann `setup-local`/`bootstrap-secrets`, erst danach synchronisieren.
+`doctor` soll mindestens sichtbar machen:
 
-## Response Behavior
+- Skill-Pfad
+- Projektordner/Venv/CLI vorhanden oder nicht
+- Settings/Secrets/Tonie-Config vorhanden oder nicht
+- ob Credentials gefunden werden
+- erwartetes Repo und erwarteter Branch
+- tatsächlicher Git-Remote, Branch, Commit und Dirty-Status
+- ob die lokale CLI `sync-local-files` unterstützt
+- welche Quellen aktuell in `tonies.toml` konfiguriert sind
 
-Nach erfolgreicher Arbeit soll der Agent knapp, aber konkret sagen:
+## Legacy-Kompatibilität
 
-- welcher Tonie betroffen war
-- unter welchem Namen/Alias er lokal geführt wird
-- welcher Podcast oder welche Feed-URL jetzt gilt
-- ob nur die Zuordnung geändert wurde oder auch ein Sync lief
+Wenn in älteren lokalen Dateien noch `default_podcast = "pumuckl"` steht, darf der Skill das noch lesen. Für neue Einträge aber direkt `podcast = "https://..."` verwenden.
 
-Wenn Sync technisch erfolgreich war, kurz erwähnen, dass die Toniebox die Inhalte noch aus der Tonie-Cloud ziehen muss.
+## Wenn etwas schiefgeht
 
-## Verification Checklist
+1. `doctor` ausführen
+2. `show-config` prüfen
+3. prüfen, ob `~/.local/share/tonie-podcast-sync` wirklich auf Florians Fork/Branch steht
+4. prüfen, ob `settings.toml` die erwartete Quelle enthält (`podcast`, `audio_folder` oder `audio_files`)
+5. erst dann erneut synchronisieren
 
-- [ ] `doctor` wurde ausgeführt
-- [ ] Upstream-Projekt ist vorhanden oder installiert
-- [ ] Zugangsdaten wurden lokal gefunden oder klar als fehlend benannt
-- [ ] `discover-tonies` wurde genutzt, keine IDs geraten
-- [ ] lokale `tonies.toml` enthält sinnvolle `name`- und `aliases`-Einträge
-- [ ] keine Haushaltsdaten wurden ins Repository geschrieben
-- [ ] Podcast-Zuordnung verwendet Katalog-Alias oder direkte RSS-URL
-- [ ] Sync wurde nur nach erfolgreichem Setup ausgeführt
+## Verwandte Referenzen
+
+- `README.md`
+- `references/tonies.md`
+- `references/tonies.example.toml`
+- `references/podcasts.md`
