@@ -29,10 +29,11 @@ Nutze diesen Skill, wenn ein Kreativ-Tonie mit Podcast-Folgen oder lokalen Audio
 
 Bis die lokalen Audio-Erweiterungen upstream integriert sind, muss dieser Skill absichtlich Florians Fork und Branch verwenden:
 
-- Repo: `git@github.com:FlorianCP/tonie-podcast-sync.git`
+- Primäres Repo: `git@github.com:FlorianCP/tonie-podcast-sync.git`
+- HTTPS-Fallback: `https://github.com/FlorianCP/tonie-podcast-sync.git`
 - Branch: `feature/local-mp3-sync`
 
-`setup-local` stellt genau diesen Stand her. Nicht stillschweigend auf PyPI oder das alte Upstream-Repo zurückfallen.
+`setup-local` stellt genau diesen Stand her. Der Skill versucht zuerst SSH und fällt bei fehlendem GitHub-SSH-Zugriff automatisch auf HTTPS zurück. Nicht stillschweigend auf PyPI oder das alte Upstream-Repo zurückfallen.
 
 ## Regeln
 

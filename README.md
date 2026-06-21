@@ -14,10 +14,11 @@ Der bestehende Podcast-Katalog bleibt erhalten und kann weiterhin über Aliase w
 
 Bis die lokalen Audio-Erweiterungen upstream gemerged und released sind, arbeitet dieser Skill absichtlich gegen Florians Fork und einen fest verdrahteten Branch:
 
-- Repo: `git@github.com:FlorianCP/tonie-podcast-sync.git`
+- Primäres Repo: `git@github.com:FlorianCP/tonie-podcast-sync.git`
+- HTTPS-Fallback: `https://github.com/FlorianCP/tonie-podcast-sync.git`
 - Branch: `feature/local-mp3-sync`
 
-`setup-local` checkt genau diesen Stand aus und installiert ihn lokal editable.
+`setup-local` richtet genau diesen Checkout ein und installiert ihn editable (`pip install -e .`). Der Ablauf versucht zuerst SSH und fällt bei fehlendem GitHub-SSH-Zugriff automatisch auf HTTPS zurück. Es wird bewusst nicht auf PyPI oder das ursprüngliche Upstream-Repo zurückgefallen.
 
 ## Wichtige Dateien
 

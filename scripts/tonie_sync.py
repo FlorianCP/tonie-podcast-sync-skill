@@ -20,6 +20,7 @@ DEFAULT_CONFIG_FILE = Path.home() / ".config" / "tonie-podcast-sync-skill" / "to
 EXAMPLE_CONFIG_FILE = SKILL_DIR / "references" / "tonies.example.toml"
 GOOGLE_DOC_URL = "https://docs.google.com/spreadsheets/d/16EGIIIXWbNr8DwaGZWbUqnYHg_LgpgM7NECzTbUWgW4/edit?gid=0#gid=0"
 EXPECTED_UPSTREAM_REPO_URL = "git@github.com:FlorianCP/tonie-podcast-sync.git"
+EXPECTED_UPSTREAM_HTTPS_URL = "https://github.com/FlorianCP/tonie-podcast-sync.git"
 EXPECTED_UPSTREAM_REF = "feature/local-mp3-sync"
 PODCAST_SORTINGS = ["by_date_newest_first", "by_date_oldest_first", "random"]
 LOCAL_SORTINGS = ["alphabetical", "manual"]
@@ -727,6 +728,59 @@ def run(cmd: list[str]) -> None:
     subprocess.run(cmd, check=True)
 
 
+def run_capture(cmd: list[str]) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(cmd, check=False, capture_output=True, text=True)
+
+
+def failed_due_to_ssh_auth(result: subprocess.CompletedProcess[str]) -> bool:
+    stderr = (result.stderr or "").lower()
+    return result.returncode != 0 and (
+        "permission denied (publickey)" in stderr
+        or "could not read from remote repository" in stderr
+        or "host key verification failed" in stderr
+    )
+
+
+def sync_upstream_repo(target: Path) -> None:
+    if not target.exists():
+        result = run_capture(["git", "clone", EXPECTED_UPSTREAM_REPO_URL, str(target)])
+        if result.returncode != 0:
+            if not failed_due_to_ssh_auth(result):
+                raise subprocess.CalledProcessError(result.returncode, result.args, output=result.stdout, stderr=result.stderr)
+            print("SSH-Clone fehlgeschlagen, versuche HTTPS-Fallback …")
+            https_result = run_capture(["git", "clone", EXPECTED_UPSTREAM_HTTPS_URL, str(target)])
+            if https_result.returncode != 0:
+                raise subprocess.CalledProcessError(
+                    https_result.returncode,
+                    https_result.args,
+                    output=https_result.stdout,
+                    stderr=https_result.stderr,
+                )
+    if not (target / ".git").exists():
+        raise SystemExit(f"Projektordner existiert, ist aber kein Git-Repo: {target}")
+
+    run(["git", "-C", str(target), "remote", "set-url", "origin", EXPECTED_UPSTREAM_REPO_URL])
+    fetch_result = run_capture(["git", "-C", str(target), "fetch", "origin", "--prune"])
+    if fetch_result.returncode != 0:
+        if not failed_due_to_ssh_auth(fetch_result):
+            raise subprocess.CalledProcessError(
+                fetch_result.returncode,
+                fetch_result.args,
+                output=fetch_result.stdout,
+                stderr=fetch_result.stderr,
+            )
+        print("SSH-Fetch fehlgeschlagen, wechsle Origin auf HTTPS und versuche erneut …")
+        run(["git", "-C", str(target), "remote", "set-url", "origin", EXPECTED_UPSTREAM_HTTPS_URL])
+        https_fetch_result = run_capture(["git", "-C", str(target), "fetch", "origin", "--prune"])
+        if https_fetch_result.returncode != 0:
+            raise subprocess.CalledProcessError(
+                https_fetch_result.returncode,
+                https_fetch_result.args,
+                output=https_fetch_result.stdout,
+                stderr=https_fetch_result.stderr,
+            )
+
+
 def check_runtime(require_package: bool = False) -> list[str]:
     problems: list[str] = []
     if not project_dir().exists():
@@ -881,13 +935,7 @@ def setup_local(python_bin: str = "python3") -> None:
         raise SystemExit(f"Python nicht gefunden: {python_bin}")
     target = project_dir()
     target.parent.mkdir(parents=True, exist_ok=True)
-    if not target.exists():
-        run(["git", "clone", EXPECTED_UPSTREAM_REPO_URL, str(target)])
-    if not (target / ".git").exists():
-        raise SystemExit(f"Projektordner existiert, ist aber kein Git-Repo: {target}")
-
-    run(["git", "-C", str(target), "remote", "set-url", "origin", EXPECTED_UPSTREAM_REPO_URL])
-    run(["git", "-C", str(target), "fetch", "origin", "--prune"])
+    sync_upstream_repo(target)
     run(["git", "-C", str(target), "checkout", "-B", EXPECTED_UPSTREAM_REF, f"origin/{EXPECTED_UPSTREAM_REF}"])
     run([python_path, "-m", "venv", str(target / ".venv")])
     run([str(target / ".venv" / "bin" / "python"), "-m", "pip", "install", "--upgrade", "pip"])
