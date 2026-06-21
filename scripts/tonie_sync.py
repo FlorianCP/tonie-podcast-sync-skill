@@ -444,6 +444,50 @@ def load_skill_config() -> dict[str, dict[str, Any]]:
     return normalized
 
 
+def write_skill_config(tonies: dict[str, dict[str, Any]]) -> None:
+    path = config_file()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    blocks = [
+        "# Haushalts-spezifische Tonie-Zuordnung für den tonie-podcast-sync Skill.",
+        "# Genau eine Quelle pro Tonie: podcast, audio_folder oder audio_files.",
+        "",
+    ]
+    ordered_keys = [
+        "id",
+        "name",
+        "aliases",
+        "podcast",
+        "audio_folder",
+        "audio_files",
+        "episode_sorting",
+        "maximum_length",
+        "episode_min_duration_sec",
+        "episode_max_duration_sec",
+        "volume_adjustment",
+        "excluded_title_strings",
+        "pinned_episode_names",
+        "wipe",
+    ]
+    for slug in sorted(tonies.keys()):
+        cfg = tonies[slug]
+        blocks.append(f"[tonies.{slug}]")
+        for key in ordered_keys:
+            if key not in cfg or cfg[key] is None:
+                continue
+            value = cfg[key]
+            if isinstance(value, bool):
+                rendered = toml_bool(value)
+            elif isinstance(value, int):
+                rendered = str(value)
+            elif isinstance(value, list):
+                rendered = toml_list([str(v) for v in value])
+            else:
+                rendered = toml_string(str(value))
+            blocks.append(f"{key} = {rendered}")
+        blocks.append("")
+    path.write_text("\n".join(blocks).rstrip() + "\n", encoding="utf-8")
+
+
 def load_settings() -> dict[str, Any]:
     data: dict[str, Any] = {"creative_tonies": {}}
     path = settings_file()
@@ -643,6 +687,10 @@ def assign_source(
     cfg["name"] = tonie["name"]
     if episode_sorting is not None:
         cfg["episode_sorting"] = episode_sorting
+    elif audio_folder is not None or audio_files:
+        current_sorting = str(cfg.get("episode_sorting", "")).strip()
+        if current_sorting not in LOCAL_SORTINGS:
+            cfg["episode_sorting"] = "manual"
     if maximum_length is not None:
         cfg["maximum_length"] = maximum_length
     if episode_min_duration_sec is not None:
@@ -655,6 +703,23 @@ def assign_source(
         cfg["wipe"] = wipe
     data["creative_tonies"][tonie["id"]] = cfg
     write_settings(data)
+
+    updated_tonie = dict(tonie)
+    for key in ["podcast", "audio_folder", "audio_files", "excluded_title_strings", "pinned_episode_names"]:
+        updated_tonie.pop(key, None)
+    source_kind = "podcast" if podcast_feed is not None else "audio_folder" if audio_folder is not None else "audio_files"
+    updated_tonie[source_kind] = cfg[source_kind]
+    if source_kind == "podcast":
+        updated_tonie["excluded_title_strings"] = cfg.get("excluded_title_strings", [])
+        updated_tonie["pinned_episode_names"] = cfg.get("pinned_episode_names", [])
+    updated_tonie["episode_sorting"] = cfg["episode_sorting"]
+    updated_tonie["maximum_length"] = cfg["maximum_length"]
+    updated_tonie["episode_min_duration_sec"] = cfg["episode_min_duration_sec"]
+    updated_tonie["episode_max_duration_sec"] = cfg.get("episode_max_duration_sec")
+    updated_tonie["volume_adjustment"] = cfg["volume_adjustment"]
+    updated_tonie["wipe"] = cfg["wipe"]
+    skill_tonies[tonie_slug] = updated_tonie
+    write_skill_config(skill_tonies)
     return cfg
 
 
