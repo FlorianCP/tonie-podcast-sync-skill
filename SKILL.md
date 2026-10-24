@@ -200,7 +200,31 @@ Wenn in älteren lokalen Dateien noch `default_podcast = "pumuckl"` steht, darf 
 2. `show-config` prüfen
 3. prüfen, ob `~/.local/share/tonie-podcast-sync` wirklich auf Florians Fork/Branch steht
 4. prüfen, ob `settings.toml` die erwartete Quelle enthält (`podcast`, `audio_folder` oder `audio_files`)
-5. erst dann erneut synchronisieren
+5. bei lokalen Audiodateien nach dem Sync den echten Cloud-Zustand prüfen (nicht nur die Erfolgszeile vertrauen): `tonie-podcast-sync list-tonies` oder direkt Kapitelzahl/Kapitelnamen per Python prüfen
+6. erst dann erneut synchronisieren
+
+## Bekannte Falle: lange lokale Dateititel
+
+Bei lokalen Audiodateien kann ein zu langer Kapitelname in der Tonie-Cloud stillschweigend scheitern. Praktisch relevant:
+
+- für lokale MP3s wird der Kapitelname bevorzugt aus dem ID3-Tag `TIT2` gelesen, **nicht** aus dem Dateinamen
+- die Tonie-API-Library meldet fehlgeschlagene `add_chapter`-Aufrufe derzeit nicht sauber nach oben; die CLI kann also `Successfully uploaded` ausgeben, obwohl ein Kapitel am Tonie fehlt
+- Symptom: nach einem Sync mit mehreren lokalen Dateien ist nur der letzte/kurze Track auf dem Tonie sichtbar
+
+Workaround:
+
+1. den problematischen MP3-Track in eine lokale Kopie mit **kurzem** `title`-Metadatum umschreiben, z. B. per `ffmpeg -c:a copy -metadata title='Kurzer Titel'`
+2. diese vorbereitete Datei statt der Originaldatei synchronisieren
+3. danach per Kapitelzahl/Kapitelnamen verifizieren, dass wirklich alle gewünschten Tracks vorhanden sind
+
+Lange Titel sind nur eine mögliche Ursache: Ein Kapitel kann auch trotz kurzem, zuvor funktionierendem Titel fehlen.
+
+Wenn nur das letzte Kapitel fehlt und alle vorherigen Kapitel korrekt, vollständig verarbeitet und in der richtigen Reihenfolge vorhanden sind:
+
+1. nicht sofort alles wipen und neu hochladen
+2. den Tonie per ID frisch abrufen und prüfen, dass die vorhandenen Kapitel exakt dem erwarteten Anfang der Liste entsprechen
+3. nur die fehlende Datei anhängen, z. B. per `tps._api.upload_file_to_tonie(tonie, pfad, titel)`
+4. danach mit einem frischen Client erneut Kapitelzahl, Reihenfolge und verarbeitete Dauer (`seconds > 0`) prüfen
 
 ## Verwandte Referenzen
 
