@@ -28,6 +28,7 @@ python3 scripts/tonie_sync.py assign --tonie benjamin-kreativ --podcast https://
 - `checker-tobi` -> Checker Tobi Podcast
 - `pumuckl` -> Pumuckl
 - `lachlabor` -> Das Lachlabor Podcast
+- `alle-gegen-nico` -> Alle gegen Nico - Zockt um die Quizkrone!
 - `ohrenbaer` -> Ohrenbär-Podcast
 - `kakadu` -> Kakadu
 - `mikado` -> Mikado - der Kinder-Podcast (NDR)
@@ -47,6 +48,7 @@ python3 scripts/tonie_sync.py assign --tonie benjamin-kreativ --podcast https://
 | betthupferl | Betthupferl - Gute-Nacht-Geschichten für Kinder BR | https://feeds.br.de/betthupferl/feed.xml | |
 | tigerenten-club | Tigerenten Club | https://www.kindernetz.de/~podcast/sendungen/hoerspielshow/podcast-hoerspielshow-100.xml | letzter bekannter Eintrag 2024-05-10 |
 | lachlabor | Das Lachlabor Podcast | https://feeds.br.de/lachlabor/feed.xml | |
+| alle-gegen-nico | Alle gegen Nico - Zockt um die Quizkrone! | https://feeds.br.de/alle-gegen-nico-zockt-um-die-quizkrone/feed.xml | Quiz-Podcast, normale Folgen meist 35–45 min |
 | figarinos-fahrradladen | figarinos Fahrradladen | https://www.mdr.de/tweens/podcast/figarino/fahrradladen102-podcast.xml | |
 | was-ist-was | "Was ist was" der Podcast | https://feeds.megaphone.fm/KBBF5520541713 | letzter bekannter Eintrag 2024-06-27 |
 | geolino-spezial | Geolino spezial | https://proxyfeed.svmaudio.com/aa/geolino-spezial | |

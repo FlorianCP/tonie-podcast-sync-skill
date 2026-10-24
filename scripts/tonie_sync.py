@@ -88,6 +88,12 @@ PODCASTS: dict[str, dict[str, Any]] = {
         "aliases": ["lachlabor", "das lachlabor"],
         "notes": "",
     },
+    "alle-gegen-nico": {
+        "name": "Alle gegen Nico - Zockt um die Quizkrone!",
+        "feed": "https://feeds.br.de/alle-gegen-nico-zockt-um-die-quizkrone/feed.xml",
+        "aliases": ["alle gegen nico", "alle gegen nico zockt um die quizkrone", "zockt um die quizkrone", "quizkrone", "nico quiz"],
+        "notes": "",
+    },
     "figarinos-fahrradladen": {
         "name": "figarinos Fahrradladen",
         "feed": "https://www.mdr.de/tweens/podcast/figarino/fahrradladen102-podcast.xml",
